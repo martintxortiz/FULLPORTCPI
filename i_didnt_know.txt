@@ -1,0 +1,126 @@
+Strategy as math
+Let the parameter vector be
+θ=(sb, a, rL, rS, L, T, ms, R1, R2, kt, kc, kw, ρ)θ=(sb, a, rL, rS, L, T, ms, R1, R2, kt, kc, kw, ρ)
+where:
+sbsb = STRONG_BODY_PCT
+aa = ADX_MIN
+rLrL = RSI_LONG_MAX
+rSrS = RSI_SHORT_MIN
+LL = PULLBACK_LOOKBACK
+TT = TIME_STOP_BARS
+msms = MAX_STOP_PCT
+R1R1 = PARTIAL_R
+R2R2 = FINAL_R
+ktkt = ATR_TRAIL_MULT
+kckc = ATR_STOP_CAP
+kwkw = ATR_WICK_PAD
+ρρ = MAX_RISK_PCT
+Your indicators are:
+MAn(t)=1n∑j=0n−1Ct−jMAn(t)=n1j=0∑n−1Ct−j TRt=max⁡(Ht−Lt, ∣Ht−Ct−1∣, ∣Lt−Ct−1∣)TRt=max(Ht−Lt, ∣Ht−Ct−1∣, ∣Lt−Ct−1∣) ATRt=WilderEWM14(TRt)ATRt=WilderEWM14(TRt) RSIt=100−1001+WilderEWM14(max⁡(ΔCt,0))WilderEWM14(max⁡(−ΔCt,0))RSIt=100−1+WilderEWM14(max(−ΔCt,0))WilderEWM14(max(ΔCt,0))100 ADXt=WilderEWM14(DXt)ADXt=WilderEWM14(DXt)
+A candle is “strong” when
+∣Ct−Ot∣Ht−Lt≥sbHt−Lt∣Ct−Ot∣≥sb
+with bullish direction if Ct>OtCt>Ot, bearish if Ct<OtCt<Ot.
+Trend state:
+Bullt=1[Ct>MA200(t) ∧ MA50(t)>MA200(t)]Bullt=1[Ct>MA200(t) ∧ MA50(t)>MA200(t)] Beart=1[Ct<MA200(t) ∧ MA50(t)<MA200(t)]Beart=1[Ct<MA200(t) ∧ MA50(t)<MA200(t)]
+Entry logic
+Your long signal at bar tt is:
+LongSignalt(θ)=1[Bullt∧ADXt≥a∧StrongBullt∧RSIt≤rL∧∃j∈[t−L,t−1]:Lowj≤MA50(j)+ATRt∧Ct−MA50(t)ATRt≤4]LongSignalt(θ)=1[Bullt∧ADXt≥a∧StrongBullt∧RSIt≤rL∧∃j∈[t−L,t−1]:Lowj≤MA50(j)+ATRt∧ATRtCt−MA50(t)≤4]
+Your short signal is:
+ShortSignalt(θ)=1[Beart∧ADXt≥a∧StrongBeart∧RSIt≥rS∧∃j∈[t−L,t−1]:Highj≥MA50(j)−ATRt∧MA50(t)−CtATRt≤4]ShortSignalt(θ)=1[Beart∧ADXt≥a∧StrongBeart∧RSIt≥rS∧∃j∈[t−L,t−1]:Highj≥MA50(j)−ATRt∧ATRtMA50(t)−Ct≤4]
+If a long signal happens, the raw stop is
+Straw=max⁡(Lowt−kwATRt, Ct−kcATRt)Straw=max(Lowt−kwATRt, Ct−kcATRt)
+If a short signal happens, the raw stop is
+Straw=min⁡(Hight+kwATRt, Ct+kcATRt)Straw=min(Hight+kwATRt, Ct+kcATRt)
+Entry price is:
+Et={Ot+1,normal modeCt,instant modeEt={Ot+1,Ct,normal modeinstant mode
+Stop distance as percent:
+stop_pctt=∣Et−Straw∣Etstop_pctt=Et∣Et−Straw∣
+Trade is allowed only if
+stop_pctt≤msstop_pctt≤ms
+Sizing is exactly what your code does:
+riskUSDt=Equityt⋅ρriskUSDt=Equityt⋅ρ Notionalt=min⁡(riskUSDtstop_pctt, Equityt⋅Leverage)Notionalt=min(stop_pcttriskUSDt, Equityt⋅Leverage)
+Exit logic and real edge
+For a long, define price risk
+Δt=Et−StΔt=Et−St
+Targets:
+TP1t=Et+R1Δt,TP2t=Et+R2ΔtTP1t=Et+R1Δt,TP2t=Et+R2Δt
+For a short:
+TP1t=Et−R1Δt,TP2t=Et−R2ΔtTP1t=Et−R1Δt,TP2t=Et−R2Δt
+After the partial exit, your code halves the notional, moves stop to breakeven, and then trails with ATR.
+That makes the strategy path-dependent, so the cleanest exact definition of the edge is not one bar formula but the realized position-level return produced by the simulator.
+The best mathematical definition of your edge is therefore:
+E(θ)=E[Rp(θ)]E(θ)=E[Rp(θ)]
+where Rp(θ)Rp(θ) is the realized return in units of initial risk for one full position pp.
+A standard expectancy form is Expectancy=(WinRate×AvgWin)−(LossRate×AvgLoss)Expectancy=(WinRate×AvgWin)−(LossRate×AvgLoss), which is the same idea written through win/loss frequencies instead of averaging per-trade outcomes.
+For your code, I would define position-level RR as:
+Rp=∑ℓ∈pPnLp,ℓInitialRiskUSDpRp=InitialRiskUSDp∑ℓ∈pPnLp,ℓ
+where ℓℓ runs over the legs of the same position, for example partial exit plus final exit.
+This matters because your current calc_metrics() uses rows in trades_df, and partial exits are counted as separate trades, so your current win_rate, avg_r, and net_r are exit-leg metrics, not true position-level edge metrics.
+Objective to optimize
+If you want one equation that auto-finds the best parameters, use an objective like this:
+J(θ)=median⁡d∈D(Ed(θ))−λ1median⁡d∈D(DDd(θ))+λ2PassRate⁡D(θ)−λ3Penalty⁡(θ)J(θ)=mediand∈D(Ed(θ))−λ1mediand∈D(DDd(θ))+λ2PassRateD(θ)−λ3Penalty(θ)
+A practical penalty term is:
+Penalty(θ)=1000⋅1[Trades<30]+5000⋅1[FAILED]+100⋅max⁡(0,0.02−E(θ))Penalty(θ)=1000⋅1[Trades<30]+5000⋅1[FAILED]+100⋅max(0,0.02−E(θ))
+That objective says:
+maximize position-level expectancy,
+prefer lower drawdown,
+reward parameter sets that pass across many datasets,
+reject fragile settings with too few trades.
+To reduce overfitting, the safest version is walk-forward optimization: fit on one time window and score on the next unseen one, then repeat.
+Walk-forward is specifically used to reduce curve fitting, and parameter stability across nearby values is usually more important than one sharp “perfect” optimum.
+Auto-find best parameters
+Because your search space is conditional and non-smooth, an optimizer like Optuna fits this well.
+Optuna is built around a define-by-run API for complex hyperparameter spaces, which is a good match for strategy backtests with branching logic like yours.
+Here is the structure I recommend.
+
+Your strategy has a **theoretically sound architecture**, but several structural properties of highly volatile crypto specifically stress-test it in ways that need deliberate mitigation before claiming a solid edge.
+
+## What the Framework Gets Right
+
+The multi-filter entry stack (MA alignment + ADX + strong candle + RSI pullback + proximity to MA50) drastically reduces false signal frequency — a genuine edge in volatile markets where noise dominates. ATR-normalized stops and ATR-based position sizing are the right approach because they scale with realized volatility rather than fixed percentages, keeping your risk-per-trade stable across regimes. The two-leg exit (partial close at R1·Δ, trail remainder with `kt·ATR`) is empirically well-justified: it books early profit during the common "pop-and-reverse" crypto pattern while staying in for trend extension. [metrotrade](https://www.metrotrade.com/trend-following-strategy/)
+
+## Critical Weaknesses on Volatile Crypto
+
+### Regime Sensitivity of Dual-MA Trend Filter
+The condition \(\text{Bull}_t = \mathbf{1}[C_t > \text{MA}_{200}(t) \wedge \text{MA}_{50}(t) > \text{MA}_{200}(t)]\) is a *lagging confirmation*. In crypto, MA50/MA200 alignment can persist for weeks, then flip violently within 2–3 bars. Your entries therefore tend to cluster near the *end* of trends rather than the beginning, meaning you're buying strength after the move is partly exhausted. [crypto-trading](https://crypto-trading.ca/post/momentum-vs-mean-reversion-a-regime-switching-playbook-for-canadian-and-global-crypto-traders)
+
+### RSI Filter Conflict With Trend Strength
+Requiring `RSI ≤ rL` (pullback) **and** `ADX ≥ a` (strong trend) simultaneously creates a filter paradox in crypto: strong trending assets (ADX high) rarely give deep RSI pullbacks. The practical effect is very low signal frequency — which reduces curve-fit risk but also tanks your trade count, triggering the `Penalty(θ) += 1000 · 1[Trades < 30]` term and leaving statistical estimates of E(θ) unreliable. [arxiv](https://arxiv.org/html/2602.10785v1)
+
+### The Broken Metrics Bug Is Non-Trivial
+You correctly identified it: your `calc_metrics()` treats each exit leg as an independent trade, which overstates win rate and understates average loss. For a two-leg exit, the partial close at TP1 **always** wins if price hit R1·Δ, so it inflates `win_rate` by ~30–50% depending on R1/R2 split. The position-level Rp you defined:
+
+\[R_p = \frac{\sum_{\ell \in p} \text{PnL}_{p,\ell}}{\text{InitialRiskUSD}_p}\]
+
+is the only honest metric. Until you fix this, **no reported expectancy number is trustworthy**.
+
+### Parameter Dimensionality and Overfitting Risk
+You have 13 free parameters (θ) with a complex, non-smooth objective J(θ) on a regime-switching asset. With 13 dimensions even a small Optuna budget of 200 trials is computationally visiting a space of \(O(10^{13})\) possible combinations. The practical risk: [blog.quantinsti](https://blog.quantinsti.com/walk-forward-optimization-introduction/)
+
+| Risk Factor | Impact |
+|---|---|
+| 13-parameter space | Very high curve-fit probability |
+| Conditional entry logic | Non-convex, lots of local optima |
+| Crypto regime shifts (bull → bear → sideways) | Parameters that work in one regime fail in another |
+| Partial-exit bug inflating metrics | Optimizer maximizes a wrong objective |
+
+Walk-forward optimization using Optuna is the correct mitigation, but it only works reliably once the position-level Rp bug is fixed — otherwise you're optimizing a noisy, incorrect signal. [youtube](https://www.youtube.com/watch?v=UnJTDsrq-Ok)
+
+## What a "Solid Edge" Actually Requires Here
+
+A strategy has a demonstrated edge in volatile crypto if it satisfies all of these simultaneously after walk-forward validation: [arxiv](https://arxiv.org/html/2602.10785v1)
+
+- **Position-level expectancy E(θ) > 0.10R** consistently across out-of-sample windows (not just in-sample)
+- **At least 30+ position-level trades** per walk-forward window (not exit legs)
+- **Maximum drawdown < 20–25%** in out-of-sample periods
+- **Parameter stability**: adjacent parameter values (θ ± ε) produce similar J(θ), not a sharp peak that collapses immediately — that's a sign of overfitting, not edge [blog.quantinsti](https://blog.quantinsti.com/walk-forward-optimization-introduction/)
+- **No look-ahead bias** in MA/ATR calculations at entry bar
+
+## Concrete Fixes Before Claiming Edge
+
+1. **Fix `calc_metrics()`** to group legs by `position_id` and compute Rp at position level first
+2. **Add a regime filter** (e.g., ATR-percentile or HMM-based) so the strategy pauses during crypto's mean-reversion chop phases, where your trend-follow logic bleeds [crypto-trading](https://crypto-trading.ca/post/momentum-vs-mean-reversion-a-regime-switching-playbook-for-canadian-and-global-crypto-traders)
+3. **Constrain parameter search**: fix `R1 ∈ [1.5, 2.5]`, `R2 ∈ [3, 5]`, `kc ∈ [1.5, 2.5]` based on theory rather than optimizing them freely — this shrinks the overfitting surface
+4. **Walk-forward ratio**: use at least a 3:1 in-sample/out-of-sample split, score only on out-of-sample E(θ), and report the distribution of out-of-sample results — not just the best run
+
+The architecture is solid and the math is correct, but as written **you don't yet have evidence of a robust edge** — you have a plausible hypothesis that needs proper position-level accounting and out-of-sample validation before deployment on leveraged crypto. [runbot](https://runbot.io/understanding-walk-forward-optimization-a-key-technique-for-reducing-overfitting-in-backtests/)

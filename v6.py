@@ -32,23 +32,22 @@ import numpy as np
 # CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════════════
 STARTING_CAPITAL  = 10_000
-LEVERAGE          = 1
-MAX_RISK_PCT      = 0.0025    # 0.25 % of current equity risked per trade
-MAX_DRAWDOWN_PCT  = 0.10      # 10 % peak-to-trough → hard FAIL
-STRONG_BODY_PCT   = 0.15
-ADX_MIN           = 20
-RSI_LONG_MAX      = 70
-RSI_SHORT_MIN     = 20
-PULLBACK_LOOKBACK = 10
-TIME_STOP_BARS    = 96        # 8 h on 5-min bars
-MAX_STOP_PCT      = 0.03      # skip if stop distance > 3 % of entry
-PARTIAL_R         = 0.5
-FINAL_R           = 2.0
-ATR_TRAIL_MULT    = 1.5
-ATR_STOP_CAP      = 2.0
-ATR_WICK_PAD      = 0.1
-FEE_RATE          = 0.0    # 0.04 % taker per side
-
+LEVERAGE          = 10
+MAX_RISK_PCT      = 0.002071979519101518
+MAX_DRAWDOWN_PCT  = 0.10
+STRONG_BODY_PCT   = 0.42000000000000004
+ADX_MIN           = 35
+RSI_LONG_MAX      = 69
+RSI_SHORT_MIN     = 39
+PULLBACK_LOOKBACK = 27
+TIME_STOP_BARS    = 38
+MAX_STOP_PCT      = 0.045
+PARTIAL_R         = 1.2000000000000002
+FINAL_R           = 3.0
+ATR_TRAIL_MULT    = 0.9
+ATR_STOP_CAP      = 2.2
+ATR_WICK_PAD      = 0.03
+FEE_RATE          = 0.0
 
 ASSET_MAP: dict[str, str] = {
     'BTCUSDT':  'BTC',
